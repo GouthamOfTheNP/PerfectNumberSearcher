@@ -1,4 +1,4 @@
-# Perfect Number Finder
+# Perfect Number Searcher
 
 A Python program that discovers perfect numbers by testing for Mersenne primes using the Lucas-Lehmer primality test.
 
