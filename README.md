@@ -539,7 +539,7 @@ This project demonstrates:
 
 ## Contributing
 
-This is an educational demonstration system focused on the beauty of perfect numbers. For actual Mersenne prime hunting (which finds perfect numbers!), join the real GIMPS project at **https://www.mersenne.org**!
+This is a system focused on the beauty of perfect numbers. Feel free to contribute by creating a pull request or raising an issue.
 
 ## Credits
 
@@ -551,7 +551,7 @@ This is an educational demonstration system focused on the beauty of perfect num
 
 ## License
 
-Public domain - for educational purposes
+MIT License
 
 ---
 
