@@ -1,0 +1,47 @@
+# perfectnet-server.service
+# Copy to: /etc/systemd/system/perfectnet-server.service
+# Usage:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable perfectnet-server
+#   sudo systemctl start perfectnet-server
+#   sudo systemctl status perfectnet-server
+
+[Unit]
+Description=Perfect Number Network Server
+After=network.target
+Documentation=https://github.com/yourrepo/perfectnet
+
+[Service]
+Type=simple
+User=perfectnet
+Group=perfectnet
+WorkingDirectory=/opt/perfectnet
+Environment="PATH=/opt/perfectnet/venv/bin"
+
+# Server configuration
+ExecStart=/opt/perfectnet/venv/bin/python server.py --host 0.0.0.0 --port 5000 --db /var/lib/perfectnet/perfectnet.db
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=0
+
+# Resource limits
+LimitNOFILE=65536
+MemoryLimit=2G
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/perfectnet
+ReadOnlyPaths=/opt/perfectnet
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=perfectnet-server
+
+[Install]
+WantedBy=multi-user.target
