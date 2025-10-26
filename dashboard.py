@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-dashboard.py - Perfect Number Network Web Dashboard
+dashboard.py - Perfect Number Network Web Dashboard (Updated)
 Real-time monitoring dashboard via HTTP
 
 Usage:
@@ -17,6 +17,8 @@ import sys
 import math
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
+
+sys.set_int_max_str_digits(0)
 
 class DashboardHandler(http.server.BaseHTTPRequestHandler):
 	db_file = 'perfectnet.db'
@@ -127,6 +129,14 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             border-radius: 15px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
             margin-bottom: 30px;
+        }
+        .section.scrollable {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .section.scrollable .section-content {
+            max-height: 400px;
+            overflow-y: auto;
         }
         .section h2 {
             color: #667eea;
@@ -255,9 +265,11 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             <div id="perfects-list" class="loading">Loading discoveries...</div>
         </div>
         
-        <div class="section" id="assignments-section">
+        <div class="section scrollable" id="assignments-section">
             <h2>⚙️ Active Searches</h2>
-            <div id="assignments-list" class="loading">Loading assignments...</div>
+            <div class="section-content" id="assignments-list">
+                <div class="loading">Loading assignments...</div>
+            </div>
         </div>
         
         <div class="section" id="users-section">
@@ -362,7 +374,13 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             const response = await fetch('/api/assignments');
             const data = await response.json();
             
-            if (data.assignments.length === 0) {
+            const now = new Date();
+            const activeAssignments = data.assignments.filter(a => {
+                const expiresAt = new Date(a.expires_at);
+                return expiresAt > now;
+            });
+            
+            if (activeAssignments.length === 0) {
                 document.getElementById('assignments-list').innerHTML = 
                     '<p style="color: #666; padding: 20px; text-align: center;">No active searches</p>';
                 return;
@@ -370,7 +388,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             
             let html = '<table><tr><th>Username</th><th>Candidate</th><th>Progress</th><th>Started</th></tr>';
             
-            data.assignments.forEach(a => {
+            activeAssignments.forEach(a => {
                 html += `
                     <tr>
                         <td><strong>${a.username}</strong></td>
@@ -471,10 +489,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             }
         }
         
-        // Initial load
         refresh();
         
-        // Auto-refresh every 10 seconds
         setInterval(refresh, 10000);
     </script>
 </body>
@@ -561,7 +577,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 			cursor = conn.cursor()
 
 			cursor.execute('''
-                           SELECT username, exponent, progress, assigned_at
+                           SELECT username, exponent, progress, assigned_at, expires_at
                            FROM assignments
                            WHERE status = 'assigned'
                            ORDER BY assigned_at DESC
@@ -573,7 +589,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 					'username': row[0],
 					'exponent': row[1],
 					'progress': row[2],
-					'assigned_at': row[3]
+					'assigned_at': row[3],
+					'expires_at': row[4]
 				})
 
 			conn.close()

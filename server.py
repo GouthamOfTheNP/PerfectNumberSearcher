@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-server.py - Perfect Number Network Server
+server.py - Perfect Number Network Server (Optimized)
 Coordinates distributed search for perfect numbers via Mersenne primes
 
 A perfect number equals the sum of its proper divisors.
@@ -21,6 +21,8 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+
+sys.set_int_max_str_digits(0)
 
 class PerfectNumberServer:
 	def __init__(self, host='0.0.0.0', port=5555, db_file='perfectnet.db'):
@@ -70,7 +72,6 @@ class PerfectNumberServer:
                                                               perfect_number TEXT,
                                                               digit_count INTEGER,
                                                               discovered_at TEXT,
-                                                              residue TEXT,
                                                               time_seconds REAL
                        )
 		               ''')
@@ -85,7 +86,6 @@ class PerfectNumberServer:
 
 		cursor.execute('SELECT COUNT(*) FROM work_queue')
 		if cursor.fetchone()[0] == 0:
-			# Start with small known perfect numbers for testing
 			initial_exponents = list(range(127, 10000))
 
 			for exp in initial_exponents:
@@ -167,7 +167,6 @@ class PerfectNumberServer:
 
 			conn.commit()
 
-			# Calculate potential perfect number
 			perfect_number = (2 ** (exponent - 1)) * ((2 ** exponent) - 1)
 			digits = len(str(perfect_number))
 
@@ -205,8 +204,8 @@ class PerfectNumberServer:
 		finally:
 			conn.close()
 
-	def _submit_result(self, username, exponent, is_prime, residue=None, time_seconds=0):
-		"""Submit a completed test result"""
+	def _submit_perfect_number(self, username, exponent, perfect_number, digit_count, time_seconds):
+		"""Submit a perfect number discovery"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -220,22 +219,12 @@ class PerfectNumberServer:
 			if not result or result[0] != username:
 				return {'success': False, 'error': 'Invalid assignment'}
 
-			perfect_number = None
-			digit_count = 0
-			is_perfect = 0
-
-			if is_prime:
-				# This is a perfect number!
-				perfect_number = str((2 ** (exponent - 1)) * ((2 ** exponent) - 1))
-				digit_count = len(perfect_number)
-				is_perfect = 1
-
 			cursor.execute('''
                            INSERT INTO results (exponent, username, is_perfect, perfect_number,
-                                                digit_count, discovered_at, residue, time_seconds)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			               ''', (exponent, username, is_perfect, perfect_number, digit_count,
-			                     datetime.now().isoformat(), residue, time_seconds))
+                                                digit_count, discovered_at, time_seconds)
+                           VALUES (?, ?, 1, ?, ?, ?, ?)
+			               ''', (exponent, username, perfect_number, digit_count,
+			                     datetime.now().isoformat(), time_seconds))
 
 			cursor.execute('''
                            UPDATE assignments
@@ -243,39 +232,63 @@ class PerfectNumberServer:
                            WHERE exponent = ? AND username = ?
 			               ''', (exponent, username))
 
-			if is_perfect:
-				cursor.execute('''
-                               UPDATE users
-                               SET exponents_tested = exponents_tested + 1,
-                                   perfect_numbers_found = perfect_numbers_found + 1
-                               WHERE username = ?
-				               ''', (username,))
-
-				print(f"\n{'='*70}")
-				print(f"🎉 PERFECT NUMBER DISCOVERED! 🎉")
-				print(f"Perfect Number: 2^{exponent-1} × (2^{exponent} - 1)")
-				print(f"Digits: {digit_count:,}")
-				print(f"Discovered by: {username}")
-				print(f"Value: {perfect_number[:60]}...")
-				print(f"(Verified via Mersenne prime M({exponent}) = 2^{exponent} - 1)")
-				print(f"{'='*70}\n")
-			else:
-				cursor.execute('''
-                               UPDATE users
-                               SET exponents_tested = exponents_tested + 1
-                               WHERE username = ?
-				               ''', (username,))
-				print(f"Candidate p={exponent}: Not a perfect number (M({exponent}) is composite)")
+			cursor.execute('''
+                           UPDATE users
+                           SET exponents_tested = exponents_tested + 1,
+                               perfect_numbers_found = perfect_numbers_found + 1
+                           WHERE username = ?
+			               ''', (username,))
 
 			conn.commit()
 
+			print(f"\n{'='*70}")
+			print(f"🎉 PERFECT NUMBER DISCOVERED! 🎉")
+			print(f"Perfect Number: 2^{exponent-1} × (2^{exponent} - 1)")
+			print(f"Digits: {digit_count:,}")
+			print(f"Discovered by: {username}")
+			print(f"Value: {perfect_number[:60]}...")
+			print(f"(Verified via Mersenne prime M({exponent}) = 2^{exponent} - 1)")
+			print(f"{'='*70}\n")
+
 			return {
 				'success': True,
-				'is_perfect': is_perfect,
-				'perfect_number': perfect_number,
-				'digit_count': digit_count,
 				'exponent': exponent
 			}
+
+		finally:
+			conn.close()
+
+	def _mark_composite(self, username, exponent):
+		"""Mark an exponent as tested but composite (not a perfect number)"""
+		conn = sqlite3.connect(self.db_file)
+		cursor = conn.cursor()
+
+		try:
+			cursor.execute('''
+                           SELECT username FROM assignments
+                           WHERE exponent = ? AND status = 'assigned'
+			               ''', (exponent,))
+
+			result = cursor.fetchone()
+			if not result or result[0] != username:
+				return False
+
+			cursor.execute('''
+                           UPDATE assignments
+                           SET status = 'completed', progress = 100
+                           WHERE exponent = ? AND username = ?
+			               ''', (exponent, username))
+
+			cursor.execute('''
+                           UPDATE users
+                           SET exponents_tested = exponents_tested + 1
+                           WHERE username = ?
+			               ''', (username,))
+
+			conn.commit()
+			print(f"Candidate p={exponent}: Not a perfect number (M({exponent}) is composite)")
+
+			return True
 
 		finally:
 			conn.close()
@@ -387,15 +400,15 @@ class PerfectNumberServer:
 					response = {'type': 'progress_ack', 'success': success}
 					conn.send(json.dumps(response).encode('utf-8'))
 
-				elif req_type == 'submit_result':
+				elif req_type == 'submit_perfect':
 					exponent = request.get('exponent')
-					is_prime = request.get('is_prime')
-					residue = request.get('residue')
+					perfect_number = request.get('perfect_number')
+					digit_count = request.get('digit_count')
 					time_seconds = request.get('time_seconds', 0)
 
 					with self.lock:
-						result = self._submit_result(username, exponent, is_prime,
-						                             residue, time_seconds)
+						result = self._submit_perfect_number(username, exponent,
+						                                     perfect_number, digit_count, time_seconds)
 
 					response = {'type': 'result_ack', **result}
 					conn.send(json.dumps(response).encode('utf-8'))

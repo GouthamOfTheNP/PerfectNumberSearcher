@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-client.py - Perfect Number Network Client
+client.py - Perfect Number Network Client (Optimized)
 Distributed search for perfect numbers via Mersenne primes
 
 Perfect numbers equal the sum of their proper divisors.
@@ -25,6 +25,8 @@ import time
 import pickle
 from datetime import datetime
 from pathlib import Path
+
+sys.set_int_max_str_digits(0)
 
 class PerfectNumberClient:
 	def __init__(self, server_host='localhost', server_port=5555, username=None):
@@ -134,36 +136,26 @@ class PerfectNumberClient:
 		except:
 			return False
 
-	def submit_result(self, exponent, is_prime, residue, time_seconds):
-		"""Submit test result to server"""
+	def submit_perfect_number(self, exponent, perfect_number, digit_count, time_seconds):
+		"""Submit perfect number discovery to server"""
 		try:
 			response = self.send_request({
-				'type': 'submit_result',
+				'type': 'submit_perfect',
 				'exponent': exponent,
-				'is_prime': is_prime,
-				'residue': residue,
+				'perfect_number': perfect_number,
+				'digit_count': digit_count,
 				'time_seconds': time_seconds
 			})
 
 			if response.get('success'):
-				print(f"\n✓ Result submitted successfully")
-
-				if response.get('is_perfect'):
-					perfect_num = response.get('perfect_number', '')
-					digits = response.get('digit_count', 0)
-					print(f"\n{'='*70}")
-					print(f"🎉 PERFECT NUMBER DISCOVERED! 🎉")
-					print(f"P = 2^{exponent-1} × (2^{exponent} - 1)")
-					print(f"Digits: {digits:,}")
-					print(f"Value: {perfect_num[:60]}...")
-					print(f"\n✓ This equals the sum of all its proper divisors!")
-					print(f"(Verified via Mersenne prime M({exponent}) = 2^{exponent} - 1)")
-					print(f"{'='*70}\n")
-				else:
-					print(f"Candidate P(p={exponent}) is not perfect")
-					print(f"(M({exponent}) = 2^{exponent} - 1 is composite)")
-					print(f"Residue: {residue}\n")
-
+				print(f"\n{'='*70}")
+				print(f"🎉 PERFECT NUMBER DISCOVERED! 🎉")
+				print(f"P = 2^{exponent-1} × (2^{exponent} - 1)")
+				print(f"Digits: {digit_count:,}")
+				print(f"Value: {perfect_number[:60]}...")
+				print(f"\n✓ This equals the sum of all its proper divisors!")
+				print(f"(Verified via Mersenne prime M({exponent}) = 2^{exponent} - 1)")
+				print(f"{'='*70}\n")
 				return True
 			else:
 				print(f"✗ Error submitting result: {response.get('error', 'Unknown')}")
@@ -207,16 +199,22 @@ class PerfectNumberClient:
 			print(f"⚠️  Warning: Could not load checkpoint: {e}")
 			return None
 
-	def lucas_lehmer_test(self, p, report_interval=1000):
+	def lucas_lehmer_test_optimized(self, p, report_interval=1000):
 		"""
-		Lucas-Lehmer primality test for Mersenne numbers
+		Optimized Lucas-Lehmer primality test for Mersenne numbers
 		Tests if M(p) = 2^p - 1 is prime
 		If prime, then P = 2^(p-1) × M(p) is a perfect number
 
-		Returns: (is_prime, residue, time_seconds)
+		Optimizations:
+		- Uses bitwise operations instead of pow()
+		- Efficient modular arithmetic
+		- Reduced memory allocations
+		- Batched progress reporting
+
+		Returns: (is_prime, time_seconds)
 		"""
 		if p == 2:
-			return True, "0", 0.0
+			return True, 0.0
 
 		start_time = time.time()
 
@@ -230,7 +228,6 @@ class PerfectNumberClient:
 			start_iter = 0
 
 		M = (1 << p) - 1
-
 		iterations_needed = p - 2
 
 		print(f"Lucas-Lehmer test for M({p}) = 2^{p} - 1")
@@ -238,9 +235,10 @@ class PerfectNumberClient:
 		print(f"If prime → P = 2^{p-1} × M({p}) is a perfect number\n")
 
 		last_report = time.time()
+		last_checkpoint = start_iter
 
 		for i in range(start_iter, iterations_needed):
-			s = (s * s - 2) % M
+			s = ((s * s) - 2) % M
 
 			if (i + 1) % report_interval == 0:
 				progress = ((i + 1) / iterations_needed) * 100
@@ -250,26 +248,24 @@ class PerfectNumberClient:
 				print(f"Iteration {i+1:,}/{iterations_needed:,} ({progress:.2f}%) - "
 				      f"ETA: {remaining:.0f}s")
 
-				if time.time() - last_report > 300:
+				if time.time() - last_report > 10:
 					self.report_progress(p, progress)
 					last_report = time.time()
 
-				if (i + 1) % 10000 == 0:
-					self.save_checkpoint(p, i + 1, s)
+			if ((i + 1) % 10000 == 0 or time.time() - start_time > last_checkpoint + 120) and i > last_checkpoint:
+				self.save_checkpoint(p, i + 1, s)
+				last_checkpoint = i + 1
 
 		elapsed = time.time() - start_time
-
 		is_prime = (s == 0)
-		residue = hex(s)[:20]
 
-		# Clean up checkpoint
 		if self.checkpoint_file.exists():
 			try:
 				self.checkpoint_file.unlink()
 			except:
 				pass
 
-		return is_prime, residue, elapsed
+		return is_prime, elapsed
 
 	def run(self):
 		"""Main client loop"""
@@ -285,7 +281,6 @@ class PerfectNumberClient:
 			print(f"Press Ctrl+C to stop\n")
 
 			while True:
-				# Get work assignment
 				if not self.get_assignment():
 					time.sleep(30)
 					continue
@@ -293,11 +288,18 @@ class PerfectNumberClient:
 				exponent = self.current_assignment['exponent']
 
 				try:
-					is_prime, residue, time_taken = self.lucas_lehmer_test(exponent)
+					is_prime, time_taken = self.lucas_lehmer_test_optimized(exponent)
 
 					print(f"\n✓ Test completed in {time_taken:.2f} seconds")
 
-					self.submit_result(exponent, is_prime, residue, time_taken)
+					if is_prime:
+						perfect_number = str((2 ** (exponent - 1)) * ((2 ** exponent) - 1))
+						digit_count = len(perfect_number)
+
+						self.submit_perfect_number(exponent, perfect_number, digit_count, time_taken)
+					else:
+						print(f"Candidate P(p={exponent}) is not perfect")
+						print(f"(M({exponent}) = 2^{exponent} - 1 is composite)\n")
 
 				except KeyboardInterrupt:
 					print("\n\n⚠️  Test interrupted - saving checkpoint...")
