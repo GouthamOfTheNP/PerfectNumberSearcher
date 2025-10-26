@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-client.py - Perfect Number Network Client (Optimized)
+client.py - Perfect Number Network Client (gmpy2 Optimized)
 Distributed search for perfect numbers via Mersenne primes
 
 Perfect numbers equal the sum of their proper divisors.
@@ -10,6 +10,9 @@ By the Euclid-Euler theorem, every even perfect number has the form:
     P = 2^(p-1) × (2^p - 1)
 where 2^p - 1 is a Mersenne prime (tested via Lucas-Lehmer)
 
+IMPORTANT: For M(p) = 2^p-1 to be prime, p must itself be prime.
+This client checks exponent primality before running the Lucas-Lehmer test.
+
 Usage:
     python client.py [server_host] [server_port]
 
@@ -17,6 +20,9 @@ Examples:
     python client.py                    # Connect to localhost:5555
     python client.py 192.168.1.100      # Connect to remote server
     python client.py localhost 5555     # Specify host and port
+
+Requirements:
+    pip install gmpy2
 """
 import socket
 import json
@@ -26,7 +32,18 @@ import pickle
 from datetime import datetime
 from pathlib import Path
 
+try:
+	import gmpy2
+	from gmpy2 import mpz
+	GMPY2_AVAILABLE = True
+except ImportError:
+	print("⚠️  Warning: gmpy2 not installed. Install with: pip install gmpy2")
+	print("⚠️  Falling back to slower Python integers\n")
+	GMPY2_AVAILABLE = False
+	mpz = int
+
 sys.set_int_max_str_digits(0)
+
 
 class PerfectNumberClient:
 	def __init__(self, server_host='localhost', server_port=5555, username=None):
@@ -38,7 +55,6 @@ class PerfectNumberClient:
 		self.current_assignment = None
 
 	def connect(self):
-		"""Connect to the server"""
 		try:
 			self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 			self.socket.connect((self.server_host, self.server_port))
@@ -46,7 +62,11 @@ class PerfectNumberClient:
 			self.send_request({'type': 'register', 'username': self.username})
 
 			print(f"✓ Connected to server at {self.server_host}:{self.server_port}")
-			print(f"✓ Registered as: {self.username}\n")
+			print(f"✓ Registered as: {self.username}")
+			if GMPY2_AVAILABLE:
+				print(f"✓ Using gmpy2 v{gmpy2.version()} for fast arithmetic\n")
+			else:
+				print(f"⚠️  Using Python integers (slower)\n")
 			return True
 
 		except ConnectionRefusedError:
@@ -58,7 +78,6 @@ class PerfectNumberClient:
 			return False
 
 	def send_request(self, request):
-		"""Send request to server and get response"""
 		if not self.socket:
 			raise ConnectionError("Not connected to server")
 
@@ -71,7 +90,6 @@ class PerfectNumberClient:
 		return json.loads(data)
 
 	def disconnect(self):
-		"""Disconnect from server"""
 		if self.socket:
 			try:
 				self.send_request({'type': 'disconnect'})
@@ -87,7 +105,6 @@ class PerfectNumberClient:
 			print("\n✓ Disconnected from server")
 
 	def get_assignment(self):
-		"""Request work assignment from server"""
 		try:
 			response = self.send_request({'type': 'get_assignment'})
 
@@ -100,14 +117,15 @@ class PerfectNumberClient:
 					'digit_count': response['digit_count']
 				}
 
-				print(f"╔{'═'*68}╗")
-				print(f"║  New Perfect Number Candidate Assignment{' '*25}║")
-				print(f"╚{'═'*68}╝")
-				print(f"Candidate: P = 2^{response['exponent']-1} × (2^{response['exponent']} - 1)")
+				print(f"╔{'═' * 68}╗")
+				print(f"║  New Perfect Number Candidate Assignment{' ' * 25}║")
+				print(f"╚{'═' * 68}╝")
+				print(f"Candidate: P = 2^{response['exponent'] - 1} × (2^{response['exponent']} - 1)")
+				print(f"Exponent p = {response['exponent']}")
 				print(f"Digits: {response['digit_count']:,}")
 				print(f"Time allowed: {response['hours_allowed']} hours")
 				print(f"Expires: {response['expires_at']}")
-				print(f"\nVerifying via Lucas-Lehmer test of M({response['exponent']})...")
+				print(f"\nWill verify p is prime before running Lucas-Lehmer test...")
 				print()
 
 				return True
@@ -125,7 +143,6 @@ class PerfectNumberClient:
 			return False
 
 	def report_progress(self, exponent, progress):
-		"""Report progress to server"""
 		try:
 			response = self.send_request({
 				'type': 'progress',
@@ -137,7 +154,6 @@ class PerfectNumberClient:
 			return False
 
 	def submit_perfect_number(self, exponent, perfect_number, digit_count, time_seconds):
-		"""Submit perfect number discovery to server"""
 		try:
 			response = self.send_request({
 				'type': 'submit_perfect',
@@ -148,14 +164,14 @@ class PerfectNumberClient:
 			})
 
 			if response.get('success'):
-				print(f"\n{'='*70}")
+				print(f"\n{'=' * 70}")
 				print(f"🎉 PERFECT NUMBER DISCOVERED! 🎉")
-				print(f"P = 2^{exponent-1} × (2^{exponent} - 1)")
+				print(f"P = 2^{exponent - 1} × (2^{exponent} - 1)")
 				print(f"Digits: {digit_count:,}")
 				print(f"Value: {perfect_number[:60]}...")
 				print(f"\n✓ This equals the sum of all its proper divisors!")
 				print(f"(Verified via Mersenne prime M({exponent}) = 2^{exponent} - 1)")
-				print(f"{'='*70}\n")
+				print(f"{'=' * 70}\n")
 				return True
 			else:
 				print(f"✗ Error submitting result: {response.get('error', 'Unknown')}")
@@ -166,11 +182,12 @@ class PerfectNumberClient:
 			return False
 
 	def save_checkpoint(self, exponent, iteration, s_value):
-		"""Save checkpoint to resume work later"""
+		s_int = int(s_value) if GMPY2_AVAILABLE else s_value
+
 		checkpoint = {
 			'exponent': exponent,
 			'iteration': iteration,
-			's': s_value,
+			's': s_int,
 			'timestamp': datetime.now().isoformat()
 		}
 
@@ -181,7 +198,6 @@ class PerfectNumberClient:
 			print(f"⚠️  Warning: Could not save checkpoint: {e}")
 
 	def load_checkpoint(self, exponent):
-		"""Load checkpoint if available for this exponent"""
 		if not self.checkpoint_file.exists():
 			return None
 
@@ -191,6 +207,8 @@ class PerfectNumberClient:
 
 			if checkpoint['exponent'] == exponent:
 				print(f"✓ Resuming from iteration {checkpoint['iteration']}")
+				if GMPY2_AVAILABLE:
+					checkpoint['s'] = mpz(checkpoint['s'])
 				return checkpoint
 			else:
 				return None
@@ -199,20 +217,29 @@ class PerfectNumberClient:
 			print(f"⚠️  Warning: Could not load checkpoint: {e}")
 			return None
 
+	def is_prime(self, n):
+		if n < 2:
+			return False
+		if n == 2:
+			return True
+		if n % 2 == 0:
+			return False
+
+		if GMPY2_AVAILABLE:
+			return gmpy2.is_prime(n)
+		else:
+			if n < 9:
+				return n in (2, 3, 5, 7)
+			if n % 3 == 0:
+				return False
+
+			limit = int(n ** 0.5) + 1
+			for i in range(5, limit, 6):
+				if n % i == 0 or n % (i + 2) == 0:
+					return False
+			return True
+
 	def lucas_lehmer_test_optimized(self, p, report_interval=1000):
-		"""
-		Optimized Lucas-Lehmer primality test for Mersenne numbers
-		Tests if M(p) = 2^p - 1 is prime
-		If prime, then P = 2^(p-1) × M(p) is a perfect number
-
-		Optimizations:
-		- Uses bitwise operations instead of pow()
-		- Efficient modular arithmetic
-		- Reduced memory allocations
-		- Batched progress reporting
-
-		Returns: (is_prime, time_seconds)
-		"""
 		if p == 2:
 			return True, 0.0
 
@@ -224,28 +251,38 @@ class PerfectNumberClient:
 			s = checkpoint['s']
 			start_iter = checkpoint['iteration']
 		else:
-			s = 4
+			s = mpz(4)
 			start_iter = 0
 
-		M = (1 << p) - 1
+		if GMPY2_AVAILABLE:
+			M = (mpz(1) << p) - 1
+		else:
+			M = (1 << p) - 1
+
 		iterations_needed = p - 2
 
 		print(f"Lucas-Lehmer test for M({p}) = 2^{p} - 1")
 		print(f"Iterations needed: {iterations_needed:,}")
-		print(f"If prime → P = 2^{p-1} × M({p}) is a perfect number\n")
+		if GMPY2_AVAILABLE:
+			print(f"Using gmpy2 for fast arithmetic")
+		print(f"Testing if M({p}) is prime (p={p} is prime ✓)")
+		print(f"If M({p}) is prime → P = 2^{p - 1} × M({p}) is a perfect number\n")
 
 		last_report = time.time()
 		last_checkpoint = start_iter
 
 		for i in range(start_iter, iterations_needed):
-			s = ((s * s) - 2) % M
+			if GMPY2_AVAILABLE:
+				s = (s * s - 2) % M
+			else:
+				s = ((s * s) - 2) % M
 
 			if (i + 1) % report_interval == 0:
 				progress = ((i + 1) / iterations_needed) * 100
 				elapsed = time.time() - start_time
 				remaining = (elapsed / (i + 1 - start_iter)) * (iterations_needed - i - 1)
 
-				print(f"Iteration {i+1:,}/{iterations_needed:,} ({progress:.2f}%) - "
+				print(f"Iteration {i + 1:,}/{iterations_needed:,} ({progress:.2f}%) - "
 				      f"ETA: {remaining:.0f}s")
 
 				if time.time() - last_report > 10:
@@ -268,15 +305,14 @@ class PerfectNumberClient:
 		return is_prime, elapsed
 
 	def run(self):
-		"""Main client loop"""
 		if not self.connect():
 			return
 
 		try:
-			print(f"╔{'═'*68}╗")
-			print(f"║  Perfect Number Network Client{' '*35}║")
-			print(f"║  Searching for perfect numbers via Euclid-Euler theorem{' '*10}║")
-			print(f"╚{'═'*68}╝")
+			print(f"╔{'═' * 68}╗")
+			print(f"║  Perfect Number Network Client{' ' * 35}║")
+			print(f"║  Searching for perfect numbers via Euclid-Euler theorem{' ' * 10}║")
+			print(f"╚{'═' * 68}╝")
 			print(f"User: {self.username}")
 			print(f"Press Ctrl+C to stop\n")
 
@@ -288,12 +324,25 @@ class PerfectNumberClient:
 				exponent = self.current_assignment['exponent']
 
 				try:
+					print(f"Checking if exponent p={exponent} is prime...")
+					if not self.is_prime(exponent):
+						print(f"✗ Exponent p={exponent} is composite")
+						print(f"   M({exponent}) = 2^{exponent} - 1 cannot be prime")
+						print(f"   Skipping Lucas-Lehmer test\n")
+						continue
+
+					print(f"✓ Exponent p={exponent} is prime\n")
+
 					is_prime, time_taken = self.lucas_lehmer_test_optimized(exponent)
 
 					print(f"\n✓ Test completed in {time_taken:.2f} seconds")
 
 					if is_prime:
-						perfect_number = str((2 ** (exponent - 1)) * ((2 ** exponent) - 1))
+						if GMPY2_AVAILABLE:
+							perfect_number = str(mpz(2) ** (exponent - 1) * (mpz(2) ** exponent - 1))
+						else:
+							perfect_number = str((2 ** (exponent - 1)) * ((2 ** exponent) - 1))
+
 						digit_count = len(perfect_number)
 
 						self.submit_perfect_number(exponent, perfect_number, digit_count, time_taken)
@@ -317,20 +366,20 @@ class PerfectNumberClient:
 			self.disconnect()
 
 	def get_stats(self):
-		"""Get user statistics from server"""
 		try:
 			response = self.send_request({'type': 'get_stats'})
 
 			if response['type'] == 'stats':
-				print(f"\n{'='*60}")
+				print(f"\n{'=' * 60}")
 				print(f"User Statistics: {self.username}")
-				print(f"{'='*60}")
+				print(f"{'=' * 60}")
 				print(f"GHz-days: {response['ghz_days']:.2f}")
 				print(f"Exponents tested: {response['exponents_tested']}")
 				print(f"Perfect numbers found: {response['perfect_numbers_found']}")
-				print(f"{'='*60}\n")
+				print(f"{'=' * 60}\n")
 		except:
 			pass
+
 
 if __name__ == '__main__':
 	server_host = 'localhost'
