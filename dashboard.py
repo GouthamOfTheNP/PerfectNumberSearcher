@@ -24,7 +24,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 		"""Suppress default logging"""
 		pass
 
-	def do_get(self):
+	def do_GET(self):
 		"""Handle GET requests"""
 		parsed_path = urlparse(self.path)
 		path = parsed_path.path
