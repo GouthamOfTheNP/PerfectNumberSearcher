@@ -1,0 +1,42 @@
+# perfectnet-dashboard.service
+# Copy to: /etc/systemd/system/perfectnet-dashboard.service
+
+[Unit]
+Description=Perfect Number Network Dashboard
+After=network.target perfectnet-server.service
+Requires=perfectnet-server.service
+Documentation=https://github.com/yourrepo/perfectnet
+
+[Service]
+Type=simple
+User=perfectnet
+Group=perfectnet
+WorkingDirectory=/opt/perfectnet
+Environment="PATH=/opt/perfectnet/venv/bin"
+
+# Dashboard configuration
+ExecStart=/opt/perfectnet/venv/bin/python dashboard.py --host 0.0.0.0 --port 8080 --api-url http://localhost:5000
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=0
+
+# Resource limits
+LimitNOFILE=4096
+MemoryLimit=512M
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/perfectnet
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=perfectnet-dashboard
+
+[Install]
+WantedBy=multi-user.target
