@@ -25,7 +25,6 @@ config_file_path = Path.home() / "Downloads" / ".perfect_numbers_config"
 
 
 def save_csv_path(path):
-    """Save the CSV path to the config file."""
     try:
         with open(config_file_path, "w") as f:
             f.write(str(path))
@@ -34,7 +33,6 @@ def save_csv_path(path):
 
 
 def log_message(msg, csv_path):
-    """Write a message to a log file next to the CSV."""
     try:
         log_file = Path(csv_path).parent / "perfect_numbers_output.txt"
         with open(log_file, "a") as f:
