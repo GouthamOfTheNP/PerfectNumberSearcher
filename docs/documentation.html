@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - Perfect Numbers Network</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: #333;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #667eea;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            gap: 2rem;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            height: fit-content;
+            position: sticky;
+            top: 80px;
+        }
+
+        .sidebar h3 {
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+
+        .sidebar ul {
+            list-style: none;
+        }
+
+        .sidebar ul li {
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar ul li a {
+            color: #333;
+            text-decoration: none;
+            display: block;
+            padding: 0.5rem;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .sidebar ul li a:hover {
+            background: #f8f9fa;
+            color: #667eea;
+        }
+
+        .content {
+            background: white;
+            border-radius: 15px;
+            padding: 3rem;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .content h1 {
+            color: #667eea;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .content h2 {
+            color: #667eea;
+            font-size: 2rem;
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .content h3 {
+            color: #667eea;
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 1.5rem;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        .code-block code {
+            display: block;
+            line-height: 1.8;
+        }
+
+        .info-box {
+            background: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+        }
+
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        th {
+            background: #f8f9fa;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        @media (max-width: 968px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                position: static;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">🔢 Perfect Numbers Network</a>
+            <ul class="nav-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="download.html">Download</a></li>
+                <li><a href="docs.html">Documentation</a></li>
+                <li><a href="technical.html">Technical</a></li>
+                <li><a href="about.html">About</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Documentation</h3>
+            <ul>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#running-server">Running the Server</a></li>
+                <li><a href="#running-client">Running Clients</a></li>
+                <li><a href="#dashboard">Web Dashboard</a></li>
+                <li><a href="#monitoring">Monitoring</a></li>
+                <li><a href="#administration">Administration</a></li>
+                <li><a href="#benchmarking">Benchmarking</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ul>
+        </aside>
+
+        <main class="content">
+            <h1>Perfect Numbers Network Documentation</h1>
+            <p>Complete guide to setting up and running the Perfect Numbers Network distributed computing system.</p>
+
+            <h2 id="getting-started">Getting Started</h2>
+            <p>The Perfect Numbers Network is a distributed computing system that searches for perfect numbers by testing Mersenne primes using the Lucas-Lehmer algorithm.</p>
+
+            <h3>Prerequisites</h3>
+            <ul style="margin-left: 2rem; line-height: 2;">
+                <li>Python 3.7 or higher installed</li>
+                <li>Basic command-line knowledge</li>
+                <li>Network connectivity (for distributed operation)</li>
+            </ul>
+
+            <h3>Quick Setup</h3>
+            <div class="code-block"><code># 1. Download and extract the project
+# 2. Navigate to the project directory
+cd perfect-numbers-network
+
+# 3. Run the server (Terminal 1)
+python server.py
+
+# 4. Run a client (Terminal 2)
+python client.py
+
+# 5. Open the dashboard (Terminal 3)
+python dashboard.py
+# Visit http://localhost:8080</code></div>
+
+            <h2 id="running-server">Running the Server</h2>
+            <p>The server coordinates work distribution and tracks results.</p>
+
+            <h3>Starting the Server</h3>
+            <div class="code-block"><code># Default port (5555)
+python server.py
+
+# Custom port
+python server.py 8000</code></div>
+
+            <div class="info-box">
+                <strong>💡 Note:</strong> The server automatically creates a SQLite database (perfectnet.db) to track progress, users, and results.
+            </div>
+
+            <h3>Server Features</h3>
+            <ul style="margin-left: 2rem; line-height: 2;">
+                <li><strong>Work Distribution:</strong> Assigns untested exponents to clients</li>
+                <li><strong>Progress Tracking:</strong> Monitors client progress in real-time</li>
+                <li><strong>Automatic Reassignment:</strong> Reclaims expired work assignments</li>
+                <li><strong>Result Storage:</strong> Stores all test results and discoveries</li>
+                <li><strong>User Credits:</strong> Tracks contributions by username</li>
+            </ul>
+
+            <h3>Server Output</h3>
+            <div class="code-block"><code>╔════════════════════════════════════════════════════════════╗
+║  Perfect Number Network Server (GIMPS-style)             ║
+╚════════════════════════════════════════════════════════════╝
+Server: 0.0.0.0:5555
+Database: perfectnet.db
+Status: Waiting for clients...
+
+Client registered: alice from 127.0.0.1:54321
+Assigned p=127 to alice</code></div>
+
+            <h2 id="running-client">Running Clients</h2>
+            <p>Clients perform the computational work to find perfect numbers.</p>
+
+            <h3>Starting a Client</h3>
+            <div class="code-block"><code># Connect to localhost
+python client.py
+
+# Connect to remote server
+python client.py 192.168.1.100
+
+# Specify custom port
+python client.py localhost 8000</code></div>
+
+            <p>You'll be prompted to enter a username. Choose something memorable!</p>
+
+            <h3>Client Workflow</h3>
+            <ol style="margin-left: 2rem; line-height: 2;">
+                <li>Connects to the server</li>
+                <li>Registers with your username</li>
+                <li>Requests work assignment</li>
+                <li>Receives an exponent to test</li>
+                <li>Performs Lucas-Lehmer test</li>
+                <li>Reports progress every 5 minutes</li>
+                <li>Saves checkpoints every 10,000 iterations</li>
+                <li>Submits result when complete</li>
+                <li>Requests next assignment</li>
+            </ol>
+
+            <h3>Client Features</h3>
+            <ul style="margin-left: 2rem; line-height: 2;">
+                <li><strong>Progress Reporting:</strong> Updates server with current progress</li>
+                <li><strong>Checkpointing:</strong> Saves state to resume interrupted work</li>
+                <li><strong>ETA Display:</strong> Shows estimated time to completion</li>
+                <li><strong>Automatic Recovery:</strong> Resumes from checkpoint after crash</li>
+            </ul>
+
+            <div class="success-box">
+                <strong>🎉 Finding a Perfect Number:</strong> When a client discovers a Mersenne prime (and therefore a perfect number), both the server and client will display a celebration message!
+            </div>
+
+            <h2 id="dashboard">Web Dashboard</h2>
+            <p>The dashboard provides real-time monitoring of the entire network.</p>
+
+            <h3>Starting the Dashboard</h3>
+            <div class="code-block"><code># Default port (8080)
+python dashboard.py
+
+# Custom port
+python dashboard.py 9000
+
+# Custom database
+python dashboard.py 8080 perfectnet.db</code></div>
+
+            <p>Then open <a href="http://localhost:8080">http://localhost:8080</a> in your web browser.</p>
+
+            <h3>Dashboard Features</h3>
+            <ul style="margin-left: 2rem; line-height: 2;">
+                <li>📊 <strong>Live Statistics:</strong> Queue size, active assignments, primes found</li>
+                <li>✨ <strong>Discoveries:</strong> All discovered perfect numbers</li>
+                <li>⚙️ <strong>Active Assignments:</strong> Real-time progress tracking</li>
+                <li>🏆 <strong>Top Contributors:</strong> Leaderboard of users</li>
+                <li>📈 <strong>Recent Results:</strong> Latest completed tests</li>
+                <li>🔄 <strong>Auto-Refresh:</strong> Updates every 10 seconds</li>
+            </ul>
+
+            <h2 id="monitoring">Monitoring</h2>
+            <p>Use the monitor tool for command-line status queries.</p>
+
+            <div class="code-block"><code># Monitor localhost server
+python monitor.py
+
+# Monitor remote server
+python monitor.py 192.168.1.100 5555</code></div>
+
+            <h3>Monitor Output</h3>
+            <p>The monitor displays:</p>
+            <ul style="margin-left: 2rem; line-height: 2;">
+                <li>Server connection status</li>
+                <li>Work queue statistics</li>
+                <li>Active assignments with progress</li>
+                <li>Top contributors leaderboard</li>
+                <li>Recent activity feed</li>
+                <li>Discovered perfect numbers</li>
+                <li>Next exponents in queue</li>
+            </ul>
+
+            <h2 id="administration">Administration</h2>
+            <p>The admin tool provides database management capabilities.</p>
+
+            <h3>Adding Work</h3>
+            <div class="code-block"><code># Add specific exponents
+python admin.py add-work 127 521 607 1279
+
+# Add a range of prime exponents
+python admin.py add-range 10000 20000</code></div>
+
+            <h3>Managing Assignments</h3>
+            <div class="code-block"><code># Reset expired assignments
+python admin.py reset
+
+# Clear a user's assignments
+python admin.py clear-user alice</code></div>
+
+            <h3>Exporting Data</h3>
+            <div class="code-block"><code># Export all results to CSV
+python admin.py export results.csv</code></div>
+
+            <h3>Statistics and Maintenance</h3>
+            <div class="code-block"><code># Show detailed statistics
+python admin.py stats
+
+# Optimize database
+python admin.py vacuum</code></div>
+
+            <h3>Admin Commands Reference</h3>
+            <table>
+                <tr>
+                    <th>Command</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td><code>add-work</code></td>
+                    <td>Add specific exponents to queue</td>
+                </tr>
+                <tr>
+                    <td><code>add-range</code></td>
+                    <td>Add range of prime exponents</td>
+                </tr>
+                <tr>
+                    <td><code>reset</code></td>
+                    <td>Reset expired assignments</td>
+                </tr>
+                <tr>
+                    <td><code>clear-user</code></td>
+                    <td>Clear user's assignments</td>
+                </tr>
+                <tr>
+                    <td><code>export</code></td>
+                    <td>Export results to CSV</td>
+                </tr>
+                <tr>
+                    <td><code>stats</code></td>
+                    <td>Show detailed statistics</td>
+                </tr>
+                <tr>
+                    <td><code>vacuum</code></td>
+                    <td>Optimize database</td>
+                </tr>
+            </table>
+
+            <h2 id="benchmarking">Benchmarking</h2>
+            <p>Test your system's performance before committing to long computations.</p>
+
+            <h3>Running Benchmarks</h3>
+            <div class="code-block"><code># Quick benchmark (recommended first)
+python benchmark.py quick
+
+# Medium benchmark (~1 minute)
+python benchmark.py medium
+
+# Large benchmark (several minutes)
+python benchmark.py large
+
+# Test specific exponent
+python benchmark.py 2281</code></div>
+
+            <h3>Understanding Results</h3>
+            <p>The benchmark will show:</p>
+            <ul style="margin-left: 2rem; line-height: 2;">
+                <li>Time per exponent</li>
+                <li>Iterations per second</li>
+                <li>Estimated completion times for various exponent sizes</li>
+                <li>Recommended exponent range for your system</li>
+            </ul>
+
+            <div class="info-box">
+                <strong>💡 Tip:</strong> Run the quick benchmark first to understand what exponent sizes your system can handle efficiently.
+            </div>
+
+            <h2 id="troubleshooting">Troubleshooting</h2>
+
+            <h3>Client Can't Connect to Server</h3>
+            <div class="warning-box">
+                <strong>Problem:</strong> "Could not connect to server"
+                <br><br>
+                <strong>Solutions:</strong>
+                <ul style="margin-left: 2rem; margin-top: 0.5rem;">
+                    <li>Verify the server is running</li>
+                    <li>Check the IP address and port are correct</li>
+                    <li>Check firewall settings</li>
+                    <li>Try: <code>python monitor.py</code> to test connectivity</li>
+                </ul>
+            </div>
+
+            <h3>Work Assignments Expiring</h3>
+            <div class="warning-box">
+                <strong>Problem:</strong> Assignments timing out before completion
+                <br><br>
+                <strong>Solutions:</strong>
+                <ul style="margin-left: 2rem; margin-top: 0.5rem;">
+                    <li>Run <code>python benchmark.py</code> to test your system</li>
+                    <li>Request smaller exponents from the admin</li>
+                    <li>Ensure stable network connection</li>
+                </ul>
+            </div>
+
+            <h3>Database Locked</h3>
+            <div class="warning-box">
+                <strong>Problem:</strong> "Database is locked" error
+                <br><br>
+                <strong>Solutions:</strong>
+                <ul style="margin-left: 2rem; margin-top: 0.5rem;">
+                    <li>Close all clients and dashboard</li>
+                    <li>Restart the server</li>
+                    <li>Run: <code>python admin.py vacuum</code></li>
+                </ul>
+            </div>
+
+            <h3>Dashboard Not Loading</h3>
+            <div class="warning-box">
+                <strong>Problem:</strong> Can't access dashboard at localhost:8080
+                <br><br>
+                <strong>Solutions:</strong>
+                <ul style="margin-left: 2rem; margin-top: 0.5rem;">
+                    <li>Verify dashboard.py is running</li>
+                    <li>Try a different port: <code>python dashboard.py 8081</code></li>
+                    <li>Check if another application is using port 8080</li>
+                </ul>
+            </div>
+
+            <h2 id="faq">Frequently Asked Questions</h2>
+
+            <h3>How long does it take to find a perfect number?</h3>
+            <p>It depends on the exponent size and your hardware. Known perfect numbers up to 127 take seconds, while larger ones can take hours to months. Run <code>python benchmark.py</code> to get estimates for your system.</p>
+
+            <h3>Can I run multiple clients on the same machine?</h3>
+            <p>Yes! Just open multiple terminals and run <code>python client.py</code> in each. Use different usernames for each client.</p>
+
+            <h3>What happens if my computer crashes during computation?</h3>
+            <p>The client saves checkpoints every 10,000 iterations. When you restart, it will resume from the last checkpoint. The server will also reassign expired work if needed.</p>
+
+            <h3>How is credit allocated?</h3>
+            <p>Each user is credited for every completed test. If you discover a perfect number, you receive special recognition!</p>
+
+            <h3>Can I pause and resume later?</h3>
+            <p>Yes! Press Ctrl+C to stop the client. When you restart, it will load the checkpoint and continue where it left off.</p>
+
+            <h3>What exponent range should I test?</h3>
+            <p>Start with smaller exponents (under 10,000) to get familiar with the system. Run <code>python benchmark.py</code> for personalized recommendations based on your hardware.</p>
+
+            <h3>Is this project connected to GIMPS?</h3>
+            <p>This is an independent educational project inspired by GIMPS. For actual Mersenne prime hunting contributing to mathematical research, visit <a href="https://www.mersenne.org">mersenne.org</a>.</p>
+
+            <h3>How do I contribute to the project development?</h3>
+            <p>Visit our <a href="https://github.com/gouthamofthenp/perfect-numbers-network">GitHub repository</a> to report issues, suggest features, or submit pull requests!</p>
+
+            <div class="success-box" style="margin-top: 3rem;">
+                <strong>Need More Help?</strong>
+                <ul style="margin-left: 2rem; margin-top: 0.5rem;">
+                    <li>Check the <a href="technical.html">Technical Documentation</a></li>
+                    <li>Visit the <a href="https://github.com/gouthamofthenp/perfect-numbers-network/issues">GitHub Issues</a> page</li>
+                    <li>Join community discussions</li>
+                </ul>
+            </div>
+        </main>
+    </div>
+
+    <footer style="background: rgba(255, 255, 255, 0.95); padding: 2rem; text-align: center; color: #666; margin-top: 2rem;">
+        <p><strong>Perfect Numbers Network</strong> - A distributed computing project for mathematical discovery</p>
+        <a href="https://github.com/gouthamofthenp/perfect-numbers-network" style="display: inline-block; margin-top: 1rem; color: #667eea; text-decoration: none; font-weight: bold;">View on GitHub</a>
+    </footer>
+</body>
+</html>
