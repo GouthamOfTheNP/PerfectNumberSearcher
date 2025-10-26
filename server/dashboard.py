@@ -7,7 +7,7 @@ Usage:
     python dashboard.py [--host HOST] [--port PORT] [--api-url URL]
 
 Example:
-    python dashboard.py --host 0.0.0.0 --port 8080
+    python dashboard.py --host 0.0.0.0 --port 5001
     python dashboard.py --api-url http://192.168.1.100:5000
 """
 import argparse
@@ -561,7 +561,7 @@ def health():
 def main():
 	parser = argparse.ArgumentParser(description='Perfect Number Network Dashboard')
 	parser.add_argument('--host', default='0.0.0.0', help='Host to bind to (default: 0.0.0.0)')
-	parser.add_argument('--port', type=int, default=8080, help='Port to bind to (default: 8080)')
+	parser.add_argument('--port', type=int, default=5001, help='Port to bind to (default: 5001)')
 	parser.add_argument('--api-url', default='http://localhost:5000',
 	                    help='API server URL (default: http://localhost:5000)')
 	parser.add_argument('--debug', action='store_true', help='Enable debug mode')
