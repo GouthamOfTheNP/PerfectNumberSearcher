@@ -42,19 +42,19 @@ class PerfectNetAdmin:
 			try:
 				cursor.execute('SELECT exponent FROM work_queue WHERE exponent = ?', (exp,))
 				if cursor.fetchone():
-					print(f"  Skip: {exp} (already in queue)")
+					print(f"  Skip: p={exp} (already in queue)")
 					skipped += 1
 					continue
 
 				cursor.execute('SELECT exponent FROM results WHERE exponent = ?', (exp,))
 				if cursor.fetchone():
-					print(f"  Skip: {exp} (already tested)")
+					print(f"  Skip: p={exp} (already tested)")
 					skipped += 1
 					continue
 
 				cursor.execute('SELECT exponent FROM assignments WHERE exponent = ?', (exp,))
 				if cursor.fetchone():
-					print(f"  Skip: {exp} (currently assigned)")
+					print(f"  Skip: p={exp} (currently assigned)")
 					skipped += 1
 					continue
 
@@ -63,7 +63,7 @@ class PerfectNetAdmin:
                                VALUES (?, ?, ?)
 				               ''', (exp, priority, datetime.now().isoformat()))
 
-				print(f"  Added: {exp}")
+				print(f"  Added: p={exp}")
 				added += 1
 
 			except Exception as e:
@@ -72,7 +72,7 @@ class PerfectNetAdmin:
 		conn.commit()
 		conn.close()
 
-		print(f"\n✓ Added {added} exponents, skipped {skipped}")
+		print(f"\n✓ Added {added} candidates, skipped {skipped}")
 		return added
 
 	def add_range(self, start, end, priority=100):
@@ -130,7 +130,7 @@ class PerfectNetAdmin:
 
 			cursor.execute('DELETE FROM assignments WHERE exponent = ?', (exponent,))
 
-			print(f"  Reset: p={exponent} from {username} (assigned {assigned_at})")
+			print(f"  Reset: P(p={exponent}) from {username} (assigned {assigned_at})")
 
 		conn.commit()
 		conn.close()
@@ -163,7 +163,7 @@ class PerfectNetAdmin:
                 VALUES (?, ?, ?)
 			               ''', (exponent, 150, datetime.now().isoformat()))
 
-			print(f"  Cleared: p={exponent}")
+			print(f"  Cleared: P(p={exponent})")
 
 		cursor.execute('DELETE FROM assignments WHERE username = ? AND status = "assigned"', (username,))
 
@@ -179,7 +179,7 @@ class PerfectNetAdmin:
 		cursor = conn.cursor()
 
 		cursor.execute('''
-                       SELECT exponent, username, is_prime, perfect_number,
+                       SELECT exponent, username, is_perfect, perfect_number, digit_count,
                               discovered_at, residue, time_seconds
                        FROM results
                        ORDER BY discovered_at
@@ -187,7 +187,7 @@ class PerfectNetAdmin:
 
 		with open(filename, 'w', newline='') as f:
 			writer = csv.writer(f)
-			writer.writerow(['Exponent', 'Username', 'Is Prime', 'Perfect Number',
+			writer.writerow(['Exponent', 'Username', 'Is Perfect', 'Perfect Number', 'Digit Count',
 			                 'Discovered At', 'Residue', 'Time (seconds)'])
 
 			count = 0
@@ -221,8 +221,8 @@ class PerfectNetAdmin:
 		cursor.execute('SELECT COUNT(*) FROM results')
 		total_tests = cursor.fetchone()[0]
 
-		cursor.execute('SELECT COUNT(*) FROM results WHERE is_prime = 1')
-		total_primes = cursor.fetchone()[0]
+		cursor.execute('SELECT COUNT(*) FROM results WHERE is_perfect = 1')
+		total_perfects = cursor.fetchone()[0]
 
 		cursor.execute('SELECT SUM(time_seconds) FROM results')
 		total_seconds = cursor.fetchone()[0] or 0
@@ -232,7 +232,7 @@ class PerfectNetAdmin:
 		print(f"   Work queue size:      {queue_size:,}")
 		print(f"   Active assignments:   {active_assignments:,}")
 		print(f"   Tests completed:      {total_tests:,}")
-		print(f"   Mersenne primes:      {total_primes:,}")
+		print(f"   Perfect numbers:      {total_perfects:,}")
 		print(f"   Total compute time:   {total_seconds/3600:.2f} hours")
 
 		if queue_size > 0:
@@ -244,7 +244,7 @@ class PerfectNetAdmin:
 
 			print(f"\n📋 Work Queue:")
 			print(f"   Exponent range:       {min_exp:,} to {max_exp:,}")
-			print(f"   Next 10 exponents:    ", end='')
+			print(f"   Next 10 candidates:   ", end='')
 
 			cursor.execute('''
                            SELECT exponent FROM work_queue
@@ -269,38 +269,38 @@ class PerfectNetAdmin:
 					assigned_time = datetime.fromisoformat(assigned_at)
 					elapsed = datetime.now() - assigned_time
 					hours = elapsed.total_seconds() / 3600
-					print(f"   {username:20} p={exponent:8,} {progress:5.1f}% ({hours:.1f}h)")
+					print(f"   {username:20} P(p={exponent:8,}) {progress:5.1f}% ({hours:.1f}h)")
 				except:
-					print(f"   {username:20} p={exponent:8,} {progress:5.1f}%")
+					print(f"   {username:20} P(p={exponent:8,}) {progress:5.1f}%")
 
 		print(f"\n🏆 Top 10 Contributors:")
 		cursor.execute('''
-                       SELECT username, exponents_tested, primes_found, total_ghz_days
+                       SELECT username, exponents_tested, perfect_numbers_found, total_ghz_days
                        FROM users
                        ORDER BY exponents_tested DESC
                            LIMIT 10
 		               ''')
 
-		print(f"   {'Rank':<6} {'Username':<20} {'Tests':<8} {'Primes':<8}")
+		print(f"   {'Rank':<6} {'Username':<20} {'Tests':<8} {'Perfects':<10}")
 		print(f"   {'-'*50}")
 
-		for i, (username, tests, primes, ghz_days) in enumerate(cursor.fetchall(), 1):
-			print(f"   {i:<6} {username:<20} {tests:<8} {primes:<8}")
+		for i, (username, tests, perfects, ghz_days) in enumerate(cursor.fetchall(), 1):
+			print(f"   {i:<6} {username:<20} {tests:<8} {perfects:<10}")
 
 		cursor.execute('''
-                       SELECT exponent, username, discovered_at
+                       SELECT exponent, username, discovered_at, digit_count
                        FROM results
-                       WHERE is_prime = 1
+                       WHERE is_perfect = 1
                        ORDER BY discovered_at DESC
                            LIMIT 5
 		               ''')
 
-		primes = cursor.fetchall()
-		if primes:
-			print(f"\n✨ Recent Mersenne Prime Discoveries:")
-			for exponent, username, discovered_at in primes:
+		perfects = cursor.fetchall()
+		if perfects:
+			print(f"\n✨ Recent Perfect Number Discoveries:")
+			for exponent, username, discovered_at, digits in perfects:
 				date_str = discovered_at.split('T')[0]
-				print(f"   M({exponent:,}) by {username} on {date_str}")
+				print(f"   P(p={exponent:,}) by {username} on {date_str} ({digits:,} digits)")
 
 		now = datetime.now().isoformat()
 		cursor.execute('''

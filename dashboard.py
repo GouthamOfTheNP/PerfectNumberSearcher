@@ -14,6 +14,7 @@ import socketserver
 import sqlite3
 import json
 import sys
+import math
 from datetime import datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
@@ -39,8 +40,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 			self.serve_assignments()
 		elif path == '/api/results':
 			self.serve_results()
-		elif path == '/api/primes':
-			self.serve_primes()
+		elif path == '/api/perfects':
+			self.serve_perfects()
 		else:
 			self.send_error(404)
 
@@ -81,6 +82,15 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
         .subtitle {
             color: #666;
             font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+        .theorem {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.95em;
+            border-left: 4px solid #667eea;
         }
         .stats-grid {
             display: grid;
@@ -180,12 +190,24 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             background: #fff3cd;
             color: #664d03;
         }
-        .prime-discovery {
+        .perfect-discovery {
             background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);
             color: white;
-            padding: 20px;
+            padding: 25px;
             border-radius: 10px;
             margin-bottom: 15px;
+        }
+        .perfect-discovery h3 {
+            font-size: 1.3em;
+            margin-bottom: 10px;
+        }
+        .perfect-discovery .formula {
+            font-family: 'Courier New', monospace;
+            font-size: 1.1em;
+            background: rgba(255,255,255,0.2);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
         }
         .refresh-info {
             text-align: center;
@@ -206,26 +228,35 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             color: #888;
             font-size: 0.9em;
         }
+        .digit-count {
+            color: #28a745;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🔢 Perfect Number Network</h1>
-            <p class="subtitle">Distributed Search for Mersenne Primes</p>
+            <h1>✨ Perfect Number Network</h1>
+            <p class="subtitle">Distributed Search for Perfect Numbers</p>
+            <div class="theorem">
+                <strong>Euclid-Euler Theorem:</strong> Every even perfect number has the form 
+                <code>P = 2<sup>p-1</sup> × (2<sup>p</sup> - 1)</code> 
+                where <code>2<sup>p</sup> - 1</code> is a Mersenne prime
+            </div>
         </div>
         
         <div class="stats-grid" id="stats-grid">
             <div class="loading">Loading statistics...</div>
         </div>
         
-        <div class="section" id="primes-section">
-            <h2>✨ Discovered Mersenne Primes</h2>
-            <div id="primes-list" class="loading">Loading discoveries...</div>
+        <div class="section" id="perfects-section">
+            <h2>✨ Discovered Perfect Numbers</h2>
+            <div id="perfects-list" class="loading">Loading discoveries...</div>
         </div>
         
         <div class="section" id="assignments-section">
-            <h2>⚙️ Active Assignments</h2>
+            <h2>⚙️ Active Searches</h2>
             <div id="assignments-list" class="loading">Loading assignments...</div>
         </div>
         
@@ -270,11 +301,11 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             
             const statsHtml = `
                 <div class="stat-card">
-                    <div class="stat-label">Work in Queue</div>
+                    <div class="stat-label">Candidates in Queue</div>
                     <div class="stat-value">${formatNumber(data.work_queue_size)}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Active Assignments</div>
+                    <div class="stat-label">Active Searches</div>
                     <div class="stat-value">${formatNumber(data.active_assignments)}</div>
                 </div>
                 <div class="stat-card">
@@ -282,8 +313,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                     <div class="stat-value">${formatNumber(data.total_users)}</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Primes Found</div>
-                    <div class="stat-value">${formatNumber(data.primes_found)}</div>
+                    <div class="stat-label">Perfect Numbers Found</div>
+                    <div class="stat-value">${formatNumber(data.perfects_found)}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Tests Completed</div>
@@ -298,29 +329,33 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             document.getElementById('stats-grid').innerHTML = statsHtml;
         }
         
-        async function loadPrimes() {
-            const response = await fetch('/api/primes');
+        async function loadPerfects() {
+            const response = await fetch('/api/perfects');
             const data = await response.json();
             
-            if (data.primes.length === 0) {
-                document.getElementById('primes-list').innerHTML = 
-                    '<p style="color: #666; padding: 20px; text-align: center;">No Mersenne primes discovered yet. Keep searching!</p>';
+            if (data.perfects.length === 0) {
+                document.getElementById('perfects-list').innerHTML = 
+                    '<p style="color: #666; padding: 20px; text-align: center;">No perfect numbers discovered yet. Keep searching!</p>';
                 return;
             }
             
             let html = '';
-            data.primes.forEach(p => {
-                const digits = Math.floor(p.exponent * Math.log10(2)) + 1;
+            data.perfects.forEach(p => {
                 html += `
-                    <div class="prime-discovery">
-                        <h3 style="margin-bottom: 10px;">M(${formatNumber(p.exponent)}) = 2^${formatNumber(p.exponent)} - 1</h3>
+                    <div class="perfect-discovery">
+                        <h3>Perfect Number #${p.exponent}</h3>
+                        <div class="formula">P = 2<sup>${p.exponent-1}</sup> × (2<sup>${p.exponent}</sup> - 1)</div>
+                        <p>Digits: <strong>${formatNumber(p.digit_count)}</strong></p>
                         <p>Discovered by: <strong>${p.username}</strong> on ${p.discovered_at.split('T')[0]}</p>
-                        <p>Perfect Number: ${p.perfect_number.substring(0, 60)}... (${formatNumber(digits)} digits)</p>
+                        <p>Value: ${p.perfect_number.substring(0, 60)}...</p>
+                        <p style="margin-top: 10px; font-size: 0.9em; opacity: 0.9;">
+                            ✓ This number equals the sum of all its proper divisors
+                        </p>
                     </div>
                 `;
             });
             
-            document.getElementById('primes-list').innerHTML = html;
+            document.getElementById('perfects-list').innerHTML = html;
         }
         
         async function loadAssignments() {
@@ -329,17 +364,17 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             
             if (data.assignments.length === 0) {
                 document.getElementById('assignments-list').innerHTML = 
-                    '<p style="color: #666; padding: 20px; text-align: center;">No active assignments</p>';
+                    '<p style="color: #666; padding: 20px; text-align: center;">No active searches</p>';
                 return;
             }
             
-            let html = '<table><tr><th>Username</th><th>Exponent</th><th>Progress</th><th>Started</th></tr>';
+            let html = '<table><tr><th>Username</th><th>Candidate</th><th>Progress</th><th>Started</th></tr>';
             
             data.assignments.forEach(a => {
                 html += `
                     <tr>
                         <td><strong>${a.username}</strong></td>
-                        <td class="mono">2^${formatNumber(a.exponent)} - 1</td>
+                        <td class="mono">P(p=${formatNumber(a.exponent)})</td>
                         <td>
                             <div class="progress-bar">
                                 <div class="progress-fill" style="width: ${a.progress}%">
@@ -366,7 +401,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 return;
             }
             
-            let html = '<table><tr><th>Rank</th><th>Username</th><th>Tests</th><th>Primes</th><th>Last Active</th></tr>';
+            let html = '<table><tr><th>Rank</th><th>Username</th><th>Tests</th><th>Perfect Numbers</th><th>Last Active</th></tr>';
             
             data.users.forEach((u, i) => {
                 html += `
@@ -374,7 +409,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                         <td><strong>${i + 1}</strong></td>
                         <td><strong>${u.username}</strong></td>
                         <td>${formatNumber(u.exponents_tested)}</td>
-                        <td><span class="badge ${u.primes_found > 0 ? 'badge-success' : 'badge-primary'}">${u.primes_found}</span></td>
+                        <td><span class="badge ${u.perfects_found > 0 ? 'badge-success' : 'badge-primary'}">${u.perfects_found}</span></td>
                         <td class="time-ago">${timeAgo(u.last_active)}</td>
                     </tr>
                 `;
@@ -394,17 +429,22 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
                 return;
             }
             
-            let html = '<table><tr><th>Exponent</th><th>Result</th><th>User</th><th>Time</th><th>Completed</th></tr>';
+            let html = '<table><tr><th>Candidate</th><th>Result</th><th>Digits</th><th>User</th><th>Time</th><th>Completed</th></tr>';
             
             data.results.forEach(r => {
-                const badge = r.is_prime ? 
-                    '<span class="badge badge-success">PRIME ✓</span>' : 
-                    '<span class="badge badge-warning">Composite</span>';
+                const badge = r.is_perfect ? 
+                    '<span class="badge badge-success">PERFECT ✓</span>' : 
+                    '<span class="badge badge-warning">Not Perfect</span>';
+                
+                const digits = r.digit_count > 0 ? 
+                    `<span class="digit-count">${formatNumber(r.digit_count)}</span>` : 
+                    '-';
                 
                 html += `
                     <tr>
-                        <td class="mono">2^${formatNumber(r.exponent)} - 1</td>
+                        <td class="mono">P(p=${formatNumber(r.exponent)})</td>
                         <td>${badge}</td>
+                        <td>${digits}</td>
                         <td><strong>${r.username}</strong></td>
                         <td>${r.time_seconds.toFixed(2)}s</td>
                         <td class="time-ago">${timeAgo(r.discovered_at)}</td>
@@ -420,7 +460,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
             try {
                 await Promise.all([
                     loadStats(),
-                    loadPrimes(),
+                    loadPerfects(),
                     loadAssignments(),
                     loadUsers(),
                     loadResults()
@@ -460,8 +500,8 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 			cursor.execute('SELECT COUNT(DISTINCT username) FROM users')
 			total_users = cursor.fetchone()[0]
 
-			cursor.execute('SELECT COUNT(*) FROM results WHERE is_prime = 1')
-			primes_found = cursor.fetchone()[0]
+			cursor.execute('SELECT COUNT(*) FROM results WHERE is_perfect = 1')
+			perfects_found = cursor.fetchone()[0]
 
 			cursor.execute('SELECT COUNT(*) FROM results')
 			tests_completed = cursor.fetchone()[0]
@@ -476,7 +516,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 				'work_queue_size': work_queue_size,
 				'active_assignments': active_assignments,
 				'total_users': total_users,
-				'primes_found': primes_found,
+				'perfects_found': perfects_found,
 				'tests_completed': tests_completed,
 				'compute_hours': compute_hours
 			}
@@ -493,7 +533,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 			cursor = conn.cursor()
 
 			cursor.execute('''
-                           SELECT username, exponents_tested, primes_found, last_active
+                           SELECT username, exponents_tested, perfect_numbers_found, last_active
                            FROM users
                            ORDER BY exponents_tested DESC
                                LIMIT 20
@@ -504,7 +544,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 				users.append({
 					'username': row[0],
 					'exponents_tested': row[1],
-					'primes_found': row[2],
+					'perfects_found': row[2],
 					'last_active': row[3]
 				})
 
@@ -549,7 +589,7 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 			cursor = conn.cursor()
 
 			cursor.execute('''
-                           SELECT exponent, username, is_prime, discovered_at, time_seconds
+                           SELECT exponent, username, is_perfect, digit_count, discovered_at, time_seconds
                            FROM results
                            ORDER BY discovered_at DESC
                                LIMIT 50
@@ -560,9 +600,10 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 				results.append({
 					'exponent': row[0],
 					'username': row[1],
-					'is_prime': bool(row[2]),
-					'discovered_at': row[3],
-					'time_seconds': row[4]
+					'is_perfect': bool(row[2]),
+					'digit_count': row[3] or 0,
+					'discovered_at': row[4],
+					'time_seconds': row[5]
 				})
 
 			conn.close()
@@ -571,30 +612,31 @@ class DashboardHandler(http.server.BaseHTTPRequestHandler):
 		except Exception as e:
 			self.send_json({'error': str(e)}, 500)
 
-	def serve_primes(self):
-		"""Serve discovered primes"""
+	def serve_perfects(self):
+		"""Serve discovered perfect numbers"""
 		try:
 			conn = sqlite3.connect(self.db_file)
 			cursor = conn.cursor()
 
 			cursor.execute('''
-                           SELECT exponent, username, discovered_at, perfect_number
+                           SELECT exponent, username, discovered_at, perfect_number, digit_count
                            FROM results
-                           WHERE is_prime = 1
+                           WHERE is_perfect = 1
                            ORDER BY exponent
 			               ''')
 
-			primes = []
+			perfects = []
 			for row in cursor.fetchall():
-				primes.append({
+				perfects.append({
 					'exponent': row[0],
 					'username': row[1],
 					'discovered_at': row[2],
-					'perfect_number': row[3]
+					'perfect_number': row[3],
+					'digit_count': row[4]
 				})
 
 			conn.close()
-			self.send_json({'primes': primes})
+			self.send_json({'perfects': perfects})
 
 		except Exception as e:
 			self.send_json({'error': str(e)}, 500)

@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
-client.py - Perfect Number Network Client (GIMPS-style)
-Distributed search for Mersenne primes using Lucas-Lehmer test
+client.py - Perfect Number Network Client
+Distributed search for perfect numbers via Mersenne primes
+
+Perfect numbers equal the sum of their proper divisors.
+Example: 6 = 1 + 2 + 3, 28 = 1 + 2 + 4 + 7 + 14
+
+By the Euclid-Euler theorem, every even perfect number has the form:
+    P = 2^(p-1) × (2^p - 1)
+where 2^p - 1 is a Mersenne prime (tested via Lucas-Lehmer)
 
 Usage:
     python client.py [server_host] [server_port]
@@ -19,7 +26,7 @@ import pickle
 from datetime import datetime
 from pathlib import Path
 
-class PerfectNetworkClient:
+class PerfectNumberClient:
 	def __init__(self, server_host='localhost', server_port=5555, username=None):
 		self.server_host = server_host
 		self.server_port = server_port
@@ -87,16 +94,18 @@ class PerfectNetworkClient:
 					'exponent': response['exponent'],
 					'expires_at': response['expires_at'],
 					'hours_allowed': response['hours_allowed'],
-					'perfect_number': response['perfect_number_if_prime']
+					'perfect_number': response['candidate_perfect_number'],
+					'digit_count': response['digit_count']
 				}
 
-				print(f"╔{'═'*60}╗")
-				print(f"║  New Assignment Received                                 ║")
-				print(f"╚{'═'*60}╝")
-				print(f"Exponent: 2^{response['exponent']} - 1")
+				print(f"╔{'═'*68}╗")
+				print(f"║  New Perfect Number Candidate Assignment{' '*25}║")
+				print(f"╚{'═'*68}╝")
+				print(f"Candidate: P = 2^{response['exponent']-1} × (2^{response['exponent']} - 1)")
+				print(f"Digits: {response['digit_count']:,}")
 				print(f"Time allowed: {response['hours_allowed']} hours")
 				print(f"Expires: {response['expires_at']}")
-				print(f"Perfect number if prime: {response['perfect_number_if_prime'][:50]}...")
+				print(f"\nVerifying via Lucas-Lehmer test of M({response['exponent']})...")
 				print()
 
 				return True
@@ -139,14 +148,20 @@ class PerfectNetworkClient:
 			if response.get('success'):
 				print(f"\n✓ Result submitted successfully")
 
-				if is_prime:
-					print(f"\n{'='*60}")
-					print(f"🎉 MERSENNE PRIME DISCOVERED! 🎉")
-					print(f"2^{exponent} - 1 is PRIME")
-					print(f"Perfect Number: {response.get('perfect_number', '')[:50]}...")
-					print(f"{'='*60}\n")
+				if response.get('is_perfect'):
+					perfect_num = response.get('perfect_number', '')
+					digits = response.get('digit_count', 0)
+					print(f"\n{'='*70}")
+					print(f"🎉 PERFECT NUMBER DISCOVERED! 🎉")
+					print(f"P = 2^{exponent-1} × (2^{exponent} - 1)")
+					print(f"Digits: {digits:,}")
+					print(f"Value: {perfect_num[:60]}...")
+					print(f"\n✓ This equals the sum of all its proper divisors!")
+					print(f"(Verified via Mersenne prime M({exponent}) = 2^{exponent} - 1)")
+					print(f"{'='*70}\n")
 				else:
-					print(f"2^{exponent} - 1 is composite")
+					print(f"Candidate P(p={exponent}) is not perfect")
+					print(f"(M({exponent}) = 2^{exponent} - 1 is composite)")
 					print(f"Residue: {residue}\n")
 
 				return True
@@ -171,7 +186,7 @@ class PerfectNetworkClient:
 			with open(self.checkpoint_file, 'wb') as f:
 				pickle.dump(checkpoint, f)
 		except Exception as e:
-			print(f"⚠ Warning: Could not save checkpoint: {e}")
+			print(f"⚠️  Warning: Could not save checkpoint: {e}")
 
 	def load_checkpoint(self, exponent):
 		"""Load checkpoint if available for this exponent"""
@@ -189,13 +204,14 @@ class PerfectNetworkClient:
 				return None
 
 		except Exception as e:
-			print(f"⚠ Warning: Could not load checkpoint: {e}")
+			print(f"⚠️  Warning: Could not load checkpoint: {e}")
 			return None
 
 	def lucas_lehmer_test(self, p, report_interval=1000):
 		"""
 		Lucas-Lehmer primality test for Mersenne numbers
 		Tests if M(p) = 2^p - 1 is prime
+		If prime, then P = 2^(p-1) × M(p) is a perfect number
 
 		Returns: (is_prime, residue, time_seconds)
 		"""
@@ -217,9 +233,9 @@ class PerfectNetworkClient:
 
 		iterations_needed = p - 2
 
-		print(f"Testing M({p}) = 2^{p} - 1")
+		print(f"Lucas-Lehmer test for M({p}) = 2^{p} - 1")
 		print(f"Iterations needed: {iterations_needed:,}")
-		print(f"Starting Lucas-Lehmer test...\n")
+		print(f"If prime → P = 2^{p-1} × M({p}) is a perfect number\n")
 
 		last_report = time.time()
 
@@ -261,10 +277,10 @@ class PerfectNetworkClient:
 			return
 
 		try:
-			print(f"╔{'═'*60}╗")
-			print(f"║  Perfect Number Network Client                           ║")
-			print(f"║  Searching for Mersenne primes...                        ║")
-			print(f"╚{'═'*60}╝")
+			print(f"╔{'═'*68}╗")
+			print(f"║  Perfect Number Network Client{' '*35}║")
+			print(f"║  Searching for perfect numbers via Euclid-Euler theorem{' '*10}║")
+			print(f"╚{'═'*68}╝")
 			print(f"User: {self.username}")
 			print(f"Press Ctrl+C to stop\n")
 
@@ -284,13 +300,13 @@ class PerfectNetworkClient:
 					self.submit_result(exponent, is_prime, residue, time_taken)
 
 				except KeyboardInterrupt:
-					print("\n\n⚠ Test interrupted - saving checkpoint...")
+					print("\n\n⚠️  Test interrupted - saving checkpoint...")
 					raise
 
 				self.current_assignment = None
 
 		except KeyboardInterrupt:
-			print("\n\n⚠ Stopping client...")
+			print("\n\n⚠️  Stopping client...")
 
 		except Exception as e:
 			print(f"\n✗ Error: {e}")
@@ -309,7 +325,7 @@ class PerfectNetworkClient:
 				print(f"{'='*60}")
 				print(f"GHz-days: {response['ghz_days']:.2f}")
 				print(f"Exponents tested: {response['exponents_tested']}")
-				print(f"Primes found: {response['primes_found']}")
+				print(f"Perfect numbers found: {response['perfect_numbers_found']}")
 				print(f"{'='*60}\n")
 		except:
 			pass
@@ -323,10 +339,10 @@ if __name__ == '__main__':
 	if len(sys.argv) > 2:
 		server_port = int(sys.argv[2])
 
-	print("╔═══════════════════════════════════════════════════════════╗")
-	print("║  Perfect Number Network - Distributed Search Client      ║")
-	print("║  Searching for Mersenne primes using Lucas-Lehmer test   ║")
-	print("╚═══════════════════════════════════════════════════════════╝\n")
+	print("╔══════════════════════════════════════════════════════════╗")
+	print("║  Perfect Number Network - Distributed Search Client     ║")
+	print("║  Finding perfect numbers via the Euclid-Euler theorem   ║")
+	print("╚══════════════════════════════════════════════════════════╝\n")
 
 	username = input("Enter username: ").strip()
 	if not username:
@@ -335,5 +351,5 @@ if __name__ == '__main__':
 
 	print(f"\nConnecting to {server_host}:{server_port}...\n")
 
-	client = PerfectNetworkClient(server_host, server_port, username)
+	client = PerfectNumberClient(server_host, server_port, username)
 	client.run()

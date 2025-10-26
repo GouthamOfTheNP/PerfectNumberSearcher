@@ -51,11 +51,11 @@ def display_server_status(status):
 	print(f"╚{'═'*68}╝\n")
 
 	print(f"📊 Network Statistics:")
-	print(f"   Work in Queue:        {status['work_queue_size']:,}")
-	print(f"   Active Assignments:   {status['active_assignments']:,}")
-	print(f"   Connected Clients:    {status['clients_connected']:,}")
-	print(f"   Active Users (7d):    {status['active_users_7d']:,}")
-	print(f"   Total Primes Found:   {status['total_primes_found']:,}")
+	print(f"   Candidates in Queue:    {status['work_queue_size']:,}")
+	print(f"   Active Searches:        {status['active_assignments']:,}")
+	print(f"   Connected Clients:      {status['clients_connected']:,}")
+	print(f"   Active Users (7d):      {status['active_users_7d']:,}")
+	print(f"   Perfect Numbers Found:  {status['perfect_numbers_found']:,}")
 
 def display_database_stats(db_file='perfectnet.db'):
 	"""Display detailed statistics from database"""
@@ -69,7 +69,7 @@ def display_database_stats(db_file='perfectnet.db'):
 
 		print("🏆 Top Contributors:")
 		cursor.execute('''
-                       SELECT username, exponents_tested, primes_found, total_ghz_days
+                       SELECT username, exponents_tested, perfect_numbers_found, total_ghz_days
                        FROM users
                        ORDER BY exponents_tested DESC
                            LIMIT 10
@@ -77,10 +77,10 @@ def display_database_stats(db_file='perfectnet.db'):
 
 		rows = cursor.fetchall()
 		if rows:
-			print(f"{'Rank':<6} {'Username':<20} {'Tested':<10} {'Primes':<8} {'GHz-days':<12}")
+			print(f"{'Rank':<6} {'Username':<20} {'Tested':<10} {'Perfects':<10} {'GHz-days':<12}")
 			print(f"{'-'*68}")
-			for i, (username, tested, primes, ghz_days) in enumerate(rows, 1):
-				print(f"{i:<6} {username:<20} {tested:<10} {primes:<8} {ghz_days:<12.2f}")
+			for i, (username, tested, perfects, ghz_days) in enumerate(rows, 1):
+				print(f"{i:<6} {username:<20} {tested:<10} {perfects:<10} {ghz_days:<12.2f}")
 		else:
 			print("   No users yet")
 
@@ -112,7 +112,7 @@ def display_database_stats(db_file='perfectnet.db'):
 				except:
 					print(f"   {username:<20} {last_active}")
 
-		print(f"\n⚙️  Active Assignments:")
+		print(f"\n⚙️  Active Searches:")
 		cursor.execute('''
                        SELECT username, exponent, progress, assigned_at
                        FROM assignments
@@ -122,7 +122,7 @@ def display_database_stats(db_file='perfectnet.db'):
 
 		rows = cursor.fetchall()
 		if rows:
-			print(f"{'Username':<20} {'Exponent':<12} {'Progress':<12} {'Assigned':<20}")
+			print(f"{'Username':<20} {'Candidate':<15} {'Progress':<12} {'Assigned':<20}")
 			print(f"{'-'*68}")
 			for username, exponent, progress, assigned_at in rows:
 				try:
@@ -131,37 +131,37 @@ def display_database_stats(db_file='perfectnet.db'):
 				except:
 					time_str = assigned_at[:19]
 
-				print(f"{username:<20} {exponent:<12} {progress:>10.1f}% {time_str:<20}")
+				print(f"{username:<20} P(p={exponent}){' '*(11-len(str(exponent)))} {progress:>10.1f}% {time_str:<20}")
 		else:
-			print("   No active assignments")
+			print("   No active searches")
 
-		print(f"\n✨ Discovered Mersenne Primes:")
+		print(f"\n✨ Discovered Perfect Numbers:")
 		cursor.execute('''
-                       SELECT exponent, username, discovered_at, perfect_number
+                       SELECT exponent, username, discovered_at, perfect_number, digit_count
                        FROM results
-                       WHERE is_prime = 1
+                       WHERE is_perfect = 1
                        ORDER BY exponent
 		               ''')
 
 		rows = cursor.fetchall()
 		if rows:
-			print(f"{'Exponent':<12} {'Discoverer':<20} {'Date':<20} {'Perfect Number'}")
+			print(f"{'Exponent':<12} {'Discoverer':<20} {'Date':<20} {'Digits':<12} {'Value Preview'}")
 			print(f"{'-'*68}")
-			for exponent, username, discovered, perfect_num in rows:
+			for exponent, username, discovered, perfect_num, digits in rows:
 				try:
 					disc_time = datetime.fromisoformat(discovered)
 					time_str = disc_time.strftime("%Y-%m-%d %H:%M")
 				except:
 					time_str = discovered[:19]
 
-				pn_preview = perfect_num[:30] + "..." if len(perfect_num) > 30 else perfect_num
-				print(f"{exponent:<12} {username:<20} {time_str:<20} {pn_preview}")
+				pn_preview = perfect_num[:25] + "..." if len(perfect_num) > 25 else perfect_num
+				print(f"{exponent:<12} {username:<20} {time_str:<20} {digits:<12,} {pn_preview}")
 
-			print(f"\n   Total Mersenne primes found: {len(rows)}")
+			print(f"\n   Total perfect numbers found: {len(rows)}")
 		else:
-			print("   No Mersenne primes discovered yet")
+			print("   No perfect numbers discovered yet")
 
-		print(f"\n📋 Next Exponents in Queue:")
+		print(f"\n📋 Next Candidates in Queue:")
 		cursor.execute('''
                        SELECT exponent, priority
                        FROM work_queue
@@ -176,7 +176,7 @@ def display_database_stats(db_file='perfectnet.db'):
 
 			cursor.execute('SELECT COUNT(*) FROM work_queue')
 			total = cursor.fetchone()[0]
-			print(f"   ({total:,} total exponents in queue)")
+			print(f"   ({total:,} total candidates in queue)")
 		else:
 			print("   Work queue is empty")
 
@@ -184,8 +184,8 @@ def display_database_stats(db_file='perfectnet.db'):
 		cursor.execute('SELECT COUNT(*) FROM results')
 		total_tests = cursor.fetchone()[0]
 
-		cursor.execute('SELECT COUNT(*) FROM results WHERE is_prime = 1')
-		total_primes = cursor.fetchone()[0]
+		cursor.execute('SELECT COUNT(*) FROM results WHERE is_perfect = 1')
+		total_perfects = cursor.fetchone()[0]
 
 		cursor.execute('SELECT COUNT(DISTINCT username) FROM users')
 		total_users = cursor.fetchone()[0]
@@ -194,7 +194,7 @@ def display_database_stats(db_file='perfectnet.db'):
 		total_time = cursor.fetchone()[0] or 0
 
 		print(f"   Total exponents tested: {total_tests:,}")
-		print(f"   Mersenne primes found:  {total_primes:,}")
+		print(f"   Perfect numbers found:  {total_perfects:,}")
 		print(f"   Total users:            {total_users:,}")
 		print(f"   Total compute time:     {total_time/3600:.2f} hours")
 

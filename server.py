@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """
-server.py - Perfect Number Network Server (GIMPS-style)
-Coordinates distributed search for Mersenne primes and perfect numbers
+server.py - Perfect Number Network Server
+Coordinates distributed search for perfect numbers via Mersenne primes
+
+A perfect number equals the sum of its proper divisors.
+By the Euclid-Euler theorem, every even perfect number has the form:
+    P = 2^(p-1) × (2^p - 1)
+where 2^p - 1 is a Mersenne prime.
 
 Usage:
     python server.py [port]
@@ -17,7 +22,7 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-class PerfectNetworkServer:
+class PerfectNumberServer:
 	def __init__(self, host='0.0.0.0', port=5555, db_file='perfectnet.db'):
 		self.host = host
 		self.port = port
@@ -40,7 +45,7 @@ class PerfectNetworkServer:
                                                             username TEXT PRIMARY KEY,
                                                             total_ghz_days REAL DEFAULT 0,
                                                             exponents_tested INTEGER DEFAULT 0,
-                                                            primes_found INTEGER DEFAULT 0,
+                                                            perfect_numbers_found INTEGER DEFAULT 0,
                                                             last_active TEXT
                        )
 		               ''')
@@ -61,11 +66,11 @@ class PerfectNetworkServer:
                        CREATE TABLE IF NOT EXISTS results (
                                                               exponent INTEGER PRIMARY KEY,
                                                               username TEXT,
-                                                              is_prime INTEGER,
+                                                              is_perfect INTEGER,
                                                               perfect_number TEXT,
+                                                              digit_count INTEGER,
                                                               discovered_at TEXT,
                                                               residue TEXT,
-                                                              fft_length INTEGER,
                                                               time_seconds REAL
                        )
 		               ''')
@@ -80,7 +85,7 @@ class PerfectNetworkServer:
 
 		cursor.execute('SELECT COUNT(*) FROM work_queue')
 		if cursor.fetchone()[0] == 0:
-			known_primes = [2, 3, 5, 7, 13, 17, 19, 31, 61, 89]
+			# Start with small known perfect numbers for testing
 			initial_exponents = list(range(127, 10000))
 
 			for exp in initial_exponents:
@@ -117,7 +122,7 @@ class PerfectNetworkServer:
 						               ''', (exponent, 150, now))
 
 						cursor.execute('DELETE FROM assignments WHERE exponent = ?', (exponent,))
-						print(f"⚠ Expired: Reassigned exponent {exponent} from {username}")
+						print(f"⚠️  Expired: Reassigned exponent {exponent} from {username}")
 
 					conn.commit()
 					conn.close()
@@ -162,13 +167,16 @@ class PerfectNetworkServer:
 
 			conn.commit()
 
+			# Calculate potential perfect number
 			perfect_number = (2 ** (exponent - 1)) * ((2 ** exponent) - 1)
+			digits = len(str(perfect_number))
 
 			return {
 				'exponent': exponent,
 				'expires_at': expires_at,
 				'hours_allowed': hours,
-				'perfect_number_if_prime': str(perfect_number)
+				'candidate_perfect_number': str(perfect_number),
+				'digit_count': digits
 			}
 
 		finally:
@@ -190,7 +198,7 @@ class PerfectNetworkServer:
 			updated = cursor.rowcount > 0
 
 			if updated:
-				print(f"Progress: {username} - p={exponent} - {progress:.1f}% complete")
+				print(f"Progress: {username} - candidate P(p={exponent}) - {progress:.1f}% complete")
 
 			return updated
 
@@ -213,14 +221,20 @@ class PerfectNetworkServer:
 				return {'success': False, 'error': 'Invalid assignment'}
 
 			perfect_number = None
+			digit_count = 0
+			is_perfect = 0
+
 			if is_prime:
+				# This is a perfect number!
 				perfect_number = str((2 ** (exponent - 1)) * ((2 ** exponent) - 1))
+				digit_count = len(perfect_number)
+				is_perfect = 1
 
 			cursor.execute('''
-                           INSERT INTO results (exponent, username, is_prime, perfect_number,
-                                                discovered_at, residue, time_seconds)
-                           VALUES (?, ?, ?, ?, ?, ?, ?)
-			               ''', (exponent, username, 1 if is_prime else 0, perfect_number,
+                           INSERT INTO results (exponent, username, is_perfect, perfect_number,
+                                                digit_count, discovered_at, residue, time_seconds)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			               ''', (exponent, username, is_perfect, perfect_number, digit_count,
 			                     datetime.now().isoformat(), residue, time_seconds))
 
 			cursor.execute('''
@@ -229,33 +243,37 @@ class PerfectNetworkServer:
                            WHERE exponent = ? AND username = ?
 			               ''', (exponent, username))
 
-			if is_prime:
+			if is_perfect:
 				cursor.execute('''
                                UPDATE users
                                SET exponents_tested = exponents_tested + 1,
-                                   primes_found = primes_found + 1
+                                   perfect_numbers_found = perfect_numbers_found + 1
                                WHERE username = ?
 				               ''', (username,))
 
-				print(f"\n{'='*60}")
-				print(f"🎉 MERSENNE PRIME FOUND! 🎉")
-				print(f"Exponent: {exponent}")
+				print(f"\n{'='*70}")
+				print(f"🎉 PERFECT NUMBER DISCOVERED! 🎉")
+				print(f"Perfect Number: 2^{exponent-1} × (2^{exponent} - 1)")
+				print(f"Digits: {digit_count:,}")
 				print(f"Discovered by: {username}")
-				print(f"Perfect Number: {perfect_number[:50]}...")
-				print(f"{'='*60}\n")
+				print(f"Value: {perfect_number[:60]}...")
+				print(f"(Verified via Mersenne prime M({exponent}) = 2^{exponent} - 1)")
+				print(f"{'='*70}\n")
 			else:
 				cursor.execute('''
                                UPDATE users
                                SET exponents_tested = exponents_tested + 1
                                WHERE username = ?
 				               ''', (username,))
+				print(f"Candidate p={exponent}: Not a perfect number (M({exponent}) is composite)")
 
 			conn.commit()
 
 			return {
 				'success': True,
-				'is_prime': is_prime,
+				'is_perfect': is_perfect,
 				'perfect_number': perfect_number,
+				'digit_count': digit_count,
 				'exponent': exponent
 			}
 
@@ -269,7 +287,7 @@ class PerfectNetworkServer:
 
 		try:
 			cursor.execute('''
-                           SELECT total_ghz_days, exponents_tested, primes_found
+                           SELECT total_ghz_days, exponents_tested, perfect_numbers_found
                            FROM users WHERE username = ?
 			               ''', (username,))
 
@@ -278,7 +296,7 @@ class PerfectNetworkServer:
 				return {
 					'ghz_days': result[0],
 					'exponents_tested': result[1],
-					'primes_found': result[2]
+					'perfect_numbers_found': result[2]
 				}
 			return None
 
@@ -297,8 +315,8 @@ class PerfectNetworkServer:
 			cursor.execute('SELECT COUNT(*) FROM assignments WHERE status = "assigned"')
 			active_assignments = cursor.fetchone()[0]
 
-			cursor.execute('SELECT COUNT(*) FROM results WHERE is_prime = 1')
-			primes_found = cursor.fetchone()[0]
+			cursor.execute('SELECT COUNT(*) FROM results WHERE is_perfect = 1')
+			perfect_found = cursor.fetchone()[0]
 
 			cursor.execute('SELECT COUNT(DISTINCT username) FROM users WHERE last_active > ?',
 			               ((datetime.now() - timedelta(days=7)).isoformat(),))
@@ -307,7 +325,7 @@ class PerfectNetworkServer:
 			return {
 				'work_queue_size': queue_size,
 				'active_assignments': active_assignments,
-				'total_primes_found': primes_found,
+				'perfect_numbers_found': perfect_found,
 				'active_users_7d': active_users,
 				'clients_connected': self.clients_active
 			}
@@ -353,7 +371,7 @@ class PerfectNetworkServer:
 
 						if assignment:
 							response = {'type': 'assignment', **assignment}
-							print(f"Assigned p={assignment['exponent']} to {username}")
+							print(f"Assigned P(p={assignment['exponent']}) to {username} ({assignment['digit_count']:,} digits)")
 						else:
 							response = {'type': 'no_work', 'message': 'No work available'}
 
@@ -425,12 +443,14 @@ class PerfectNetworkServer:
 		server.bind((self.host, self.port))
 		server.listen(10)
 
-		print(f"╔{'═'*60}╗")
-		print(f"║  Perfect Number Network Server (GIMPS-style)             ║")
-		print(f"╚{'═'*60}╝")
+		print(f"╔{'═'*68}╗")
+		print(f"║{'Perfect Number Network Server'.center(68)}║")
+		print(f"╚{'═'*68}╝")
 		print(f"Server: {self.host}:{self.port}")
 		print(f"Database: {self.db_file}")
-		print(f"Status: Waiting for clients...\n")
+		print(f"\n💡 Searching for perfect numbers via the Euclid-Euler theorem:")
+		print(f"   P = 2^(p-1) × (2^p - 1) where 2^p - 1 is prime")
+		print(f"\nStatus: Waiting for clients...\n")
 
 		try:
 			while True:
@@ -448,5 +468,5 @@ if __name__ == '__main__':
 	if len(sys.argv) > 1:
 		port = int(sys.argv[1])
 
-	server = PerfectNetworkServer(port=port)
+	server = PerfectNumberServer(port=port)
 	server.start()
