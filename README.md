@@ -500,7 +500,7 @@ python dashboard.py 8081
 
 ## Contributing
 
-This is an educational demonstration system. For actual Mersenne prime hunting, join the real GIMPS project at **https://www.mersenne.org**!
+Feel free to message me or fork/commit. For actual Mersenne prime hunting, join the real GIMPS project at **https://www.mersenne.org**!
 
 ## Credits
 
