@@ -13,6 +13,9 @@ Usage:
 
 Example:
     python server.py 5555
+
+Requirements:
+    pip install gmpy2 (optional, for faster primality testing)
 """
 import socket
 import threading
@@ -21,6 +24,12 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+
+try:
+	import gmpy2
+	GMPY2_AVAILABLE = True
+except ImportError:
+	GMPY2_AVAILABLE = False
 
 sys.set_int_max_str_digits(0)
 
@@ -37,8 +46,33 @@ class PerfectNumberServer:
 		maintenance_thread = threading.Thread(target=self._maintenance_loop, daemon=True)
 		maintenance_thread.start()
 
+	def is_prime(self, n):
+		"""
+		Check if n is prime
+		Uses gmpy2.is_prime if available, otherwise basic trial division
+		"""
+		if n < 2:
+			return False
+		if n == 2:
+			return True
+		if n % 2 == 0:
+			return False
+
+		if GMPY2_AVAILABLE:
+			return gmpy2.is_prime(n)
+		else:
+			if n < 9:
+				return n in (2, 3, 5, 7)
+			if n % 3 == 0:
+				return False
+
+			limit = int(n ** 0.5) + 1
+			for i in range(5, limit, 6):
+				if n % i == 0 or n % (i + 2) == 0:
+					return False
+			return True
+
 	def _init_database(self):
-		"""Initialize SQLite database with required tables"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -86,19 +120,27 @@ class PerfectNumberServer:
 
 		cursor.execute('SELECT COUNT(*) FROM work_queue')
 		if cursor.fetchone()[0] == 0:
-			initial_exponents = list(range(127, 10000))
+			print("Initializing work queue with prime exponents...")
 
-			for exp in initial_exponents:
+			initial_range = range(127, 10000)
+			prime_exponents = [exp for exp in initial_range if self.is_prime(exp)]
+
+			print(f"Found {len(prime_exponents)} prime exponents in range 127-9999")
+			print(f"Skipped {len(initial_range) - len(prime_exponents)} composite exponents")
+
+			for exp in prime_exponents:
+				priority = 100 if exp < 1000 else 50
 				cursor.execute('''
                                INSERT INTO work_queue (exponent, priority, added_at)
                                VALUES (?, ?, ?)
-				               ''', (exp, 100 if exp < 1000 else 50, datetime.now().isoformat()))
+				               ''', (exp, priority, datetime.now().isoformat()))
+
+			print(f"✓ Work queue initialized with {len(prime_exponents)} prime candidates\n")
 
 		conn.commit()
 		conn.close()
 
 	def _maintenance_loop(self):
-		"""Periodically check for expired assignments and reassign work"""
 		while True:
 			try:
 				threading.Event().wait(60)
@@ -131,7 +173,6 @@ class PerfectNumberServer:
 				print(f"Maintenance error: {e}")
 
 	def _get_work_assignment(self, username, preferred_size='medium'):
-		"""Assign work to a user"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -182,7 +223,6 @@ class PerfectNumberServer:
 			conn.close()
 
 	def _report_progress(self, username, exponent, progress, iteration=None):
-		"""Update progress on an assignment"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -205,7 +245,6 @@ class PerfectNumberServer:
 			conn.close()
 
 	def _submit_perfect_number(self, username, exponent, perfect_number, digit_count, time_seconds):
-		"""Submit a perfect number discovery"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -259,7 +298,6 @@ class PerfectNumberServer:
 			conn.close()
 
 	def _mark_composite(self, username, exponent):
-		"""Mark an exponent as tested but composite (not a perfect number)"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -294,7 +332,6 @@ class PerfectNumberServer:
 			conn.close()
 
 	def _get_user_stats(self, username):
-		"""Get statistics for a user"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -317,7 +354,6 @@ class PerfectNumberServer:
 			conn.close()
 
 	def _get_server_status(self):
-		"""Get overall server statistics"""
 		conn = sqlite3.connect(self.db_file)
 		cursor = conn.cursor()
 
@@ -346,8 +382,35 @@ class PerfectNumberServer:
 		finally:
 			conn.close()
 
+	def add_work_range(self, start, end):
+		conn = sqlite3.connect(self.db_file)
+		cursor = conn.cursor()
+
+		try:
+			prime_count = 0
+			composite_count = 0
+
+			for exp in range(start, end + 1):
+				if self.is_prime(exp):
+					try:
+						cursor.execute('''
+                                       INSERT INTO work_queue (exponent, priority, added_at)
+                                       VALUES (?, ?, ?)
+						               ''', (exp, 50, datetime.now().isoformat()))
+						prime_count += 1
+					except sqlite3.IntegrityError:
+						pass
+				else:
+					composite_count += 1
+
+			conn.commit()
+			print(f"Added {prime_count} prime exponents to work queue")
+			print(f"Skipped {composite_count} composite exponents")
+
+		finally:
+			conn.close()
+
 	def handle_client(self, conn, addr):
-		"""Handle client connection"""
 		client_id = f"{addr[0]}:{addr[1]}"
 		username = None
 
@@ -450,7 +513,6 @@ class PerfectNumberServer:
 				print(f"Client disconnected: {username} (Active: {self.clients_active})")
 
 	def start(self):
-		"""Start the server"""
 		server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		server.bind((self.host, self.port))
@@ -461,8 +523,13 @@ class PerfectNumberServer:
 		print(f"╚{'═'*68}╝")
 		print(f"Server: {self.host}:{self.port}")
 		print(f"Database: {self.db_file}")
+		if GMPY2_AVAILABLE:
+			print(f"gmpy2: Available (v{gmpy2.version()}) - fast primality testing enabled")
+		else:
+			print(f"gmpy2: Not available - using fallback primality testing")
 		print(f"\n💡 Searching for perfect numbers via the Euclid-Euler theorem:")
 		print(f"   P = 2^(p-1) × (2^p - 1) where 2^p - 1 is prime")
+		print(f"\n🔍 Optimization: Only prime exponents assigned (M(p) requires prime p)")
 		print(f"\nStatus: Waiting for clients...\n")
 
 		try:
